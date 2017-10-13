@@ -1,0 +1,26 @@
+cache_path = "~/.ansible/tmp"
+cache_max_age = 300
+nested_groups = false
+
+[ec2]
+regions = [
+  "us-east-1",
+  "us-west-1",
+  "us-west-2",
+  "eu-west-1",
+  "eu-central-1",
+  "ca-central-1",
+  "ap-southeast-1",
+  "ap-southeast-2"
+]
+destination_variable = "private_dns_name"
+vpc_destination_variable = "private_ip_address"
+all_instances = false
+instance_filters = {"tag:ansible" = "true"}
+
+[route53]
+enabled = false
+
+[rds]
+enabled = false
+all_instances = false
