@@ -4,15 +4,9 @@ use regex::Regex;
 use rusoto_ec2::{Instance, Tag};
 use serde_json::{Map as JsonMap, Value as JsonValue};
 
-macro_rules! zoom_and_enchance {
-  ($var:expr, $member:ident) => {
-    ($var).$member.is_some()
-  }
-}
-
 macro_rules! get_value_from_struct {
   ($var:expr, $member:ident) => {
-    ($var).$member.clone().unwrap()
+    ($var).$member.clone()
   }
 }
 
@@ -60,7 +54,7 @@ macro_rules! get_as_json_str {
 macro_rules! json_map {
   { $($key:expr => $value:expr),+ } => {
     {
-      let mut m = JsonMap::new();
+      let mut m = JsonMap::with_capacity(50);
       $(
           m.insert($key.to_owned(), $value);
       )+
@@ -103,32 +97,16 @@ pub fn instance_should_be_added(config: &Configuration, instance: &mut Instance)
 fn get_potential_ec2_variable(var: &str, instance: &Instance) -> Option<String> {
   match var {
     "instance_id" => {
-      if zoom_and_enchance!(instance, instance_id) {
-        Some(get_value_from_struct!(instance, instance_id))
-      } else {
-        None
-      }
+      get_value_from_struct!(instance, instance_id)
     }
     "private_ip_address" => {
-      if zoom_and_enchance!(instance, private_ip_address) {
-        Some(get_value_from_struct!(instance, private_ip_address))
-      } else {
-        None
-      }
+      get_value_from_struct!(instance, private_ip_address)
     }
     "private_dns_name" => {
-      if zoom_and_enchance!(instance, private_dns_name) {
-        Some(get_value_from_struct!(instance, private_dns_name))
-      } else {
-        None
-      }
+      get_value_from_struct!(instance, private_dns_name)
     }
     "public_ip_address" => {
-      if zoom_and_enchance!(instance, public_ip_address) {
-        Some(get_value_from_struct!(instance, public_ip_address))
-      } else {
-        None
-      }
+      get_value_from_struct!(instance, public_ip_address)
     }
     _ => None,
   }
@@ -188,8 +166,7 @@ fn get_security_group_ids(instance: &Instance) -> JsonValue {
       Some(json!(
         value
           .iter()
-          .filter_map(|sgroup| sgroup.group_id.as_ref())
-          .map(|frd_group| frd_group.to_owned())
+          .filter_map(|sgroup| sgroup.group_id.clone())
           .collect::<Vec<String>>()
           .join(",")
       ))
@@ -206,8 +183,7 @@ pub fn get_raw_security_group_names(instance: &Instance) -> Option<Vec<String>> 
       Some(
         value
           .iter()
-          .filter_map(|sgroup| sgroup.group_name.as_ref())
-          .map(|frd_group| frd_group.to_owned())
+          .filter_map(|sgroup| sgroup.group_name.clone())
           .collect::<Vec<String>>(),
       )
     })
@@ -221,19 +197,15 @@ fn get_security_group_names(instance: &Instance) -> JsonValue {
     .unwrap()
 }
 
-fn normalize_tag(tag: &Tag) -> (String, String) {
-  let to_normalize = format!("ec2_tag_{}", tag.key.as_ref().unwrap());
-  let normalized_key = SAFE_REGEX
-    .replace_all(&to_normalize, "_")
-    .into_owned()
-    .to_owned()
-    .to_lowercase();
-  let value = tag.value.as_ref().unwrap().to_owned().to_lowercase();
-  (normalized_key, value)
-}
-
 pub fn to_safe(string: &str) -> String {
   SAFE_REGEX.replace_all(string, "_").into_owned().to_owned()
+}
+
+fn normalize_tag(tag: &Tag) -> (String, String) {
+  let to_normalize = format!("ec2_tag_{}", tag.key.as_ref().unwrap());
+  let normalized_key = to_safe(&to_normalize).to_lowercase();
+  let value = tag.value.clone().unwrap().to_lowercase();
+  (normalized_key, value)
 }
 
 pub fn get_instance_dest_variable(config: &Configuration, instance: &Instance) -> Option<String> {
@@ -337,7 +309,7 @@ pub fn merge_ec2_results(objects: Vec<JsonValue>) -> FnvHashMap<String, JsonValu
           let mut current_value = acc.remove(k).unwrap();
 
           if current_value.is_array() {
-            let mut as_arr = current_value.as_array_mut().unwrap();
+            let as_arr = current_value.as_array_mut().unwrap();
             as_arr.push(v.clone());
 
             acc.insert(k.to_owned(), json!(as_arr));

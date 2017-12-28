@@ -8,9 +8,15 @@ ifeq ($(HAZRUST),yes)
 ifeq ($(HAZRUSTUP),yes)
 cargo-setup:
 	rustup target add x86_64-unknown-linux-musl
+
+cargo-bench:
+	rustup run nightly cargo bench
 else
 cargo-setup:
 	$(warning No rustup hope you have libmusl)
+
+cargo-bench:
+	$(error Must have rustup with nightly installed)
 endif
 
 cargo-clean:
@@ -55,6 +61,9 @@ cargo-clean:
 
 cargo-setup:
 	$(warning No Rustup, so not setting anything up.)
+
+cargo-bench:
+	$(warning No Rustup, so not doing anything.)
 endif
 
 build: ec2-rs
@@ -64,5 +73,6 @@ build-static: ec2-rs-static
 build-static-release: ec2-rs-static-release
 clean: cargo-clean
 setup: cargo-setup
+bench: cargo-bench
 
-.PHONY: default build build-release build-static build-static-release clean setup release
+.PHONY: default build build-release build-static build-static-release clean setup release bench

@@ -1,9 +1,10 @@
+use fnv::FnvHashMap;
 use rusoto_core::{DefaultCredentialsProvider, default_tls_client as GetRusotoTlsClient, ProvideAwsCredentials, Region};
 use rusoto_sts::{StsClient, StsAssumeRoleSessionCredentialsProvider};
 use shellexpand::tilde as TildeExpand;
-use serde_json::{from_str as JsonFromStr, Map, Value as JsonValue};
+use serde_json::{from_slice as JsonFromSlice, Map, Value as JsonValue};
 
-use std::collections::HashMap;
+use std::io::BufReader;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
@@ -15,23 +16,28 @@ use provide_shallow_credentials::ProvideShallowCredentials;
 /// normalized names -> role to assume. (Like Rapture).
 pub struct RoleAssumer {
   /// A Map of <Easy Role Name, Role>. To assume.
-  roles_to_assume: HashMap<String, String>,
+  roles_to_assume: FnvHashMap<String, String>,
 }
 
 impl RoleAssumer {
   /// Creates a new thing that can assume roles.
   pub fn new() -> Result<Self> {
-    let mut role_names = HashMap::new();
+    let mut role_names = FnvHashMap::default();
 
     let expanded_path = TildeExpand("~/.rapture/aliases.json").into_owned();
     let rapture_path = Path::new(&expanded_path);
 
     if rapture_path.exists() {
-      let mut as_str = String::new();
-      let mut file_handle = try!(File::open(rapture_path));
-      try!(file_handle.read_to_string(&mut as_str));
+      let file_handle = try!(File::open(rapture_path));
+      let mut bytes = if let Ok(metadata) = file_handle.metadata() {
+        Vec::with_capacity(metadata.len() as usize)
+      } else {
+        Vec::with_capacity(3000)
+      };
+      let mut buf_reader = BufReader::new(file_handle);
+      try!(buf_reader.read_to_end(&mut bytes));
 
-      let potential_rapture_json = JsonFromStr(&as_str);
+      let potential_rapture_json = JsonFromSlice(&bytes);
       if potential_rapture_json.is_ok() {
         let potential_rapture_json: JsonValue = potential_rapture_json.unwrap();
         let potential_rapture_json_obj: Option<&Map<String, JsonValue>> = potential_rapture_json.as_object();
