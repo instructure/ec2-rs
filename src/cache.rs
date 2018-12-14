@@ -1,12 +1,11 @@
 use chrono::prelude::*;
+use failure::{Error, err_msg};
 use shellexpand::tilde as TildeExpand;
 use serde_json::{from_str as JsonFromStr, to_string as JsonToStr, Value as JsonValue};
 
 use std::fs::{create_dir as CreateDir, File, metadata as GetFileMetadata, OpenOptions};
 use std::io::{Read, Write};
 use std::path::Path;
-
-use errors::*;
 
 /// Handles Caching the Data returned from the EC2 API.
 pub struct Cache {
@@ -17,21 +16,20 @@ pub struct Cache {
 
 impl Cache {
   /// Creates a new instance of the Cache.
-  pub fn new(root_path: String, account_names: Option<String>, timeout_seconds: u64) -> Result<Self> {
+  pub fn new(root_path: String, account_names: String, timeout_seconds: u64) -> Result<Self, Error> {
     let expanded_path = TildeExpand(&root_path).into_owned();
     let path = Path::new(&expanded_path);
     let parent = path.parent();
     if !parent.is_some() {
-      return Err(ErrorKind::RootPathError.into());
+      return Err(err_msg("Can't find root path!"));
     }
     let parent = parent.unwrap();
     if !parent.exists() {
-      try!(CreateDir(parent.to_str().unwrap()));
+      CreateDir(parent.to_str().unwrap())?;
     }
 
     let mut potential_json_value = None;
-
-    let final_path = path.join(account_names.unwrap_or("default".to_owned()));
+    let final_path = path.join(account_names);
 
     let valid_cache = if let Ok(metadata) = GetFileMetadata(Path::new(&final_path)) {
       if let Ok(created_at) = metadata.created() {
@@ -75,7 +73,7 @@ impl Cache {
     };
 
     if path.exists() && final_path.exists() {
-      let mut non_optional_file = try!(File::open(final_path.clone()));
+      let mut non_optional_file = File::open(final_path.clone())?;
 
       let mut as_str = String::new();
       let result = non_optional_file.read_to_string(&mut as_str);
@@ -109,21 +107,21 @@ impl Cache {
 
   /// Grabs the data out of the cache. Consuming the cache as it should no longer be needed.
   /// The cache will only be read when we need to respond with it.
-  pub fn get_cache_data(self) -> Result<String> {
+  pub fn get_cache_data(self) -> Result<String, Error> {
     if self.potential_json_value.is_some() {
       let json_value = self.potential_json_value.unwrap();
-      return Ok(try!(JsonToStr(&json_value)));
+      return Ok(JsonToStr(&json_value)?);
     }
-    Err(ErrorKind::NoCacheData.into())
+    Err(err_msg("No cache data!"))
   }
 
 
   /// Writes the new cache data. Consuming the cache as it should no longer be needed.
-  pub fn write_cache_data(self, to_write: &str) -> Result<()> {
-    let mut file = try!(OpenOptions::new().create(true).write(true).open(
+  pub fn write_cache_data(self, to_write: &str) -> Result<(), Error> {
+    let mut file = OpenOptions::new().create(true).write(true).open(
       self.path_to_cache,
-    ));
-    try!(file.write_all(to_write.as_bytes()));
+    )?;
+    file.write_all(to_write.as_bytes())?;
     Ok(())
   }
 }

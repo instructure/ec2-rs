@@ -1,32 +1,34 @@
 [package]
 name = "ec2-rs"
-version = "0.2.1"
+version = "0.3.0"
 authors = [
   "Eric Coan <ecoan@instructure.com>",
   "Instructure Operations <ops@instructure.com>"
 ]
+edition = "2018"
 
 [dependencies]
-error-chain = "0.11"
-chrono = "0.4"
-concurrent-hashmap = { version = "0.2", default-features = false }
-fnv = "1"
-lazy_static = "1"
-openssl-probe = "0.1"
-rayon = "0.9"
-regex = "0.2"
-rusoto_core = "0.30"
-rusoto_ec2 = "0.30"
-rusoto_sts = "0.30"
-shellexpand = "1"
-serde = "1"
-serde_derive = "1"
-serde_json = "1"
-slog = "2"
-slog-async = "2"
-slog-json = "2"
-slog-term = "2"
-toml = "0.4"
+chrono = "^0.4"
+concurrent-hashmap = { version = "^0.2", default-features = false }
+failure = "^0.1"
+fnv = "^1"
+lazy_static = "^1"
+openssl-probe = "^0.1"
+rayon = "^1.0"
+regex = "^1.1"
+rusoto_core = "^0.35"
+rusoto_credential = "^0.14"
+rusoto_ec2 = "^0.35"
+rusoto_sts = "^0.35"
+shellexpand = "^1"
+serde = "^1"
+serde_derive = "^1"
+serde_json = "^1"
+slog = "^2"
+slog-async = "^2"
+slog-json = "^2"
+slog-term = "^2"
+toml = "^0.4"
 
 [lib]
 name = "ec2_rs_lib"

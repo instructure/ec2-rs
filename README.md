@@ -22,29 +22,18 @@ you want to run ec2-rs from.
 
 ## Feature Compatibility with EC2.py ##
 
-We've specifically kept the features we use in EC2.py inside of EC2-RS, so some configuration may no
-longer work. If you need a specific feature added from the configuration please let us know, and we
-can go ahead and add it in. Some Specific Examples Include:
+Feature Compatibility with EC2.py has been mostly dropped with v0.3, supporting
+it was leading to some pains in maintenance. However, we're still compatible with
+ansible itself! We just won't always export the exact same tags as EC2.py, or accept
+the RDS/Eucalyptus config.
 
-  * RDS Support is not yet present.
-  * Route53 Support is not yet present.
-  * Eucalyptus Support is not yet present.
+## Why is EC2-RS "Better"? ##
 
-It should also be noted we've moved the configuration file over to the TOML Format, which is very
-similar to the INI format.
-
-We've also added a couple Instructure specific fixes:
-
-  * All Tag Names are lowercased (incase you don't always tag things the same).
-  * We also added in support for "Flags" which are specially formatted tags.
-
-## Why is EC2-RS Better? ##
-
-Some of the core features that make EC2-RS Better than EC2.py for Instructure's uses are:
+Some of the core features that make EC2-RS "better" than EC2.py for Instructure's uses are:
 
 * EC2-RS is multi-threaded, meaning it can fetch from multiple regions at the same time.
 * EC2-RS has the env var `EC2_RS_FORCE_CACHE` to better control caching regardless of general timeouts.
-* EC2-RS has built in support for assuming roles to other accounts, and can fetch from multiple accounts.
+* EC2-RS uses roles to other accounts, and can fetch from multiple accounts.
 
 These are the biggest reasons for EC2-RS, but you may find a couple more as you end up using it.
 
@@ -87,14 +76,7 @@ make build-static-release
 
 Using EC2-RS is pretty simple once you've gotten it all setup (like having a toml file, and the program is built).
 
-If you want to use it in the exact same way as EC2.py (e.g. without assuming roles, or without any special
-caching rules) then simply run ansible playbook like normal, swapping out the inventory file:
-
-```
-ansible-playbook -i ./my/path/to/ec2-rs/binary/ec2-rs --vault-password-file ~/.my-vault-pass playbooks/cool/playbook.yml
-```
-
-If you'd like to assume a role you can simply pass a comma seperated list of accounts you'd like to mess with in an
+To assume a role you can simply pass a comma seperated list of accounts you'd like to mess with in an
 environment variable. This can either be a full account arn to assume, or a name of an account in [rapture][rapture]. Like so:
 
 ```

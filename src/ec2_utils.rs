@@ -1,12 +1,14 @@
-use config::Configuration;
+use crate::config::Configuration;
+
 use fnv::FnvHashMap;
+use lazy_static::lazy_static;
 use regex::Regex;
 use rusoto_ec2::{Instance, Tag};
-use serde_json::{Map as JsonMap, Value as JsonValue};
+use serde_json::{json, Map as JsonMap, Value as JsonValue};
 
 macro_rules! get_value_from_struct {
   ($var:expr, $member:ident) => {
-    ($var).$member.clone()
+    ($var).$member.as_ref()
   }
 }
 
@@ -38,23 +40,10 @@ macro_rules! get_as_json {
   };
 }
 
-macro_rules! get_as_json_str {
-  ($var:expr, $member:ident) => {
-    {
-      let value = ($var).$member.as_ref();
-      if value.is_some() {
-        json!(format!("{}", value.unwrap()))
-      } else {
-        json!("")
-      }
-    }
-  };
-}
-
 macro_rules! json_map {
   { $($key:expr => $value:expr),+ } => {
     {
-      let mut m = JsonMap::with_capacity(50);
+      let mut m = JsonMap::with_capacity(19);
       $(
           m.insert($key.to_owned(), $value);
       )+
@@ -81,7 +70,7 @@ pub fn instance_should_be_added(config: &Configuration, instance: &mut Instance)
 
   if let Some(ref mut state) = instance.state {
     if let Some(code) = state.code {
-      if !config.ec2.get_all_instances() && code != 16 {
+      if !config.ec2.get_all_instances() && (code & 0xff) != 16 {
         return false;
       }
     } else {
@@ -94,7 +83,7 @@ pub fn instance_should_be_added(config: &Configuration, instance: &mut Instance)
   true
 }
 
-fn get_potential_ec2_variable(var: &str, instance: &Instance) -> Option<String> {
+fn get_potential_ec2_variable<'a, 'b>(var: &'b str, instance: &'a Instance) -> Option<&'a String> {
   match var {
     "instance_id" => {
       get_value_from_struct!(instance, instance_id)
@@ -110,21 +99,6 @@ fn get_potential_ec2_variable(var: &str, instance: &Instance) -> Option<String> 
     }
     _ => None,
   }
-}
-
-fn instance_is_monitored(instance: &Instance) -> bool {
-  instance
-    .monitoring
-    .as_ref()
-    .and_then(|data| {
-      data
-        .state
-        .as_ref()
-        .and_then(|state| Some(state == "enabled"))
-        .or_else(|| Some(false))
-    })
-    .or_else(|| Some(false))
-    .unwrap()
 }
 
 pub fn get_raw_region_of_instance(instance: &Instance) -> Option<String> {
@@ -208,7 +182,7 @@ fn normalize_tag(tag: &Tag) -> (String, String) {
   (normalized_key, value)
 }
 
-pub fn get_instance_dest_variable(config: &Configuration, instance: &Instance) -> Option<String> {
+pub fn get_instance_dest_variable<'a, 'b>(config: &'b Configuration, instance: &'a Instance) -> Option<&'a String> {
   if instance.subnet_id.is_some() {
     get_potential_ec2_variable(&config.ec2.get_vpc_dest_variable(), instance)
   } else {
@@ -224,64 +198,25 @@ pub fn get_instance_dest_variable(config: &Configuration, instance: &Instance) -
 pub fn format_for_host_output(instance: &Instance, account: &str) -> JsonValue {
   let mut map =
     json_map! {
-    "ec2_ami_launch_index" =>  get_as_json_str!(instance, ami_launch_index),
+    "ec2_account_value" => json!(account),
     "ec2_architecture" => get_as_json!(instance, architecture),
-    "ec2_client_token" => get_as_json!(instance, client_token),
-    // ec2_dns_name is never set anywhere in ec2.py, and is never a non-empty string on an AWS Instance.
-    // this only will ever happen in R53.
-    "ec2_dns_name" => json!(""),
-    "ec2_ebs_optimized" => get_as_json!(instance, ebs_optimized),
-    // ec2_eventsSet is again a bug in ec2.py, and is never returned as a non empty string. EventsSet is
-    // only ever returned when you describe an instance which ec2.py never does.
-    "ec2_eventsSet" => json!(""),
-    // ec2_group_name is also a bug in ec2.py, and is never returned as anything other than an empty
-    // string. because group_name only belongs to security groups. however, ec2_security_group_names is populated.
-    "ec2_group_name" => json!(""),
     "ec2_hypervisor" => get_as_json!(instance, hypervisor),
     "ec2_id" => get_as_json!(instance, instance_id),
     "ec2_image_id" => get_as_json!(instance, image_id),
     "ec2_instance_profile" => get_as_json!(instance, iam_instance_profile, arn),
     "ec2_instance_type" => get_as_json!(instance, instance_type),
     "ec2_ip_address" => get_as_json!(instance, public_ip_address),
-    // Hey yo it's another empty string value. Probably only returned by eucalyptus or something.
-    "ec2_item" => json!(""),
-    "ec2_kernel" => get_as_json!(instance, kernel_id),
     "ec2_key_name" => get_as_json!(instance, key_name),
-    "ec2_launch_time" => get_as_json!(instance, launch_time),
-    "ec2_monitored" => json!(instance_is_monitored(instance)),
-    // Surprise, Surprise another thing that isn't returned by this api call. Only monitoring state
-    // is.
-    "ec2_monitoring" => json!(""),
-    "ec2_monitoring_state" => get_as_json!(instance, monitoring, state),
-    // Do I really have to keep typing, or do you get the point by now?
-    "ec2_persistent" => json!(false),
     "ec2_placement" => get_as_json!(instance, placement, availability_zone),
-    "ec2_platform" => get_as_json!(instance, platform),
-    // Insert whitty comment here.
-    "ec2_previous_state" => json!(""),
-    // insert another whitty comment.
-    "ec2_previous_state_code" => json!(0),
-    "ec2_public_dns_name" => get_as_json!(instance, public_dns_name),
-    "ec2_ramdisk" => get_as_json!(instance, ramdisk_id),
-    // so many whitty comments.
-    "ec2_reason" => json!(""),
     "ec2_region" => get_region_of_instance(instance),
-    // All the wit.
-    "ec2_requester_id" => json!(""),
     "ec2_root_device_name" => get_as_json!(instance, root_device_name),
     "ec2_root_device_type" => get_as_json!(instance, root_device_type),
     "ec2_security_group_ids" => get_security_group_ids(instance),
     "ec2_security_group_names" => get_security_group_names(instance),
-    "ec2_spot_instance_request_id" => get_as_json!(instance, spot_instance_request_id),
     "ec2_state" => get_as_json!(instance, state, name),
-    "ec2_state_code" => get_as_json!(instance, state, code),
-    "ec2_state_reason" => get_as_json!(instance, state_reason, message),
     "ec2_subnet_id" => get_as_json!(instance, subnet_id),
     "ec2_virtualization_type" => get_as_json!(instance, virtualization_type),
-    "ec2_vpc_id" => get_as_json!(instance, vpc_id),
-    "ec2_account_value" => json!(account),
-    // Yes this needs to be a str
-    "ec2_sourceDestCheck" => json!("false")
+    "ec2_vpc_id" => get_as_json!(instance, vpc_id)
   };
 
   let _ = instance.tags.as_ref().and_then(|tags: &Vec<Tag>| {

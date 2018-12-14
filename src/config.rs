@@ -1,12 +1,12 @@
+use failure::Error;
 use shellexpand::tilde as TildeExpand;
+use serde_derive::{Serialize, Deserialize};
 use toml::from_str as parse_toml_string;
 
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-
-use errors::*;
 
 /// Provides a Configuration Object for EC2-RS.
 /// This is very similar to EC2.py in and of the sense everything is optional.
@@ -18,10 +18,6 @@ pub struct Configuration {
   cache_max_age: Option<u64>,
   /// The EC2 Configuration options.
   pub ec2: Ec2Configuration,
-  /// The Route53 Configuration Options.
-  pub route53: R53Configuration,
-  /// The RDS Configuration Options.
-  pub rds: RdsConfiguration,
 }
 
 impl Configuration {
@@ -108,40 +104,12 @@ impl Ec2Configuration {
   }
 }
 
-/// Provides all the configuration options for the Route53 scanning of ec2.py
-#[derive(Deserialize, Serialize)]
-pub struct R53Configuration {
-  /// Whether or not to enable Route53 Configuration Scanning. Defaults to false.
-  enabled: Option<bool>,
-}
-
-impl R53Configuration {
-  /// Whether or not Route53 is enabled.
-  pub fn is_enabled(&self) -> bool {
-    self.enabled.clone().unwrap_or(false)
-  }
-}
-
-/// Provides all the configuration options for the RDS scanning of ec2.py
-#[derive(Deserialize, Serialize)]
-pub struct RdsConfiguration {
-  /// Whether or not to enable RDS Configuration Scanning. Defaults to false.
-  enabled: Option<bool>,
-}
-
-impl RdsConfiguration {
-  /// Whether or not RDS is enabled.
-  pub fn is_enabled(&self) -> bool {
-    self.enabled.clone().unwrap_or(false)
-  }
-}
-
 /// Parses a Configuration from a specified path.
-pub fn parse_configuration(at_path: &PathBuf) -> Result<Configuration> {
+pub fn parse_configuration(at_path: &PathBuf) -> Result<Configuration, Error> {
   let mut as_str = String::new();
-  let mut file_handle = try!(File::open(Path::new(
+  let mut file_handle = File::open(Path::new(
     &TildeExpand(at_path.to_str().unwrap()).into_owned(),
-  )));
-  try!(file_handle.read_to_string(&mut as_str));
-  Ok(try!(parse_toml_string(&as_str)))
+  ))?;
+  file_handle.read_to_string(&mut as_str)?;
+  Ok(parse_toml_string(&as_str)?)
 }
